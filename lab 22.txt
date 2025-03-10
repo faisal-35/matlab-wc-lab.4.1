@@ -1,0 +1,200 @@
+
+Problem Statement
+
+1. Develop a MATLAB source code(s) to evaluate the performance of a wireless communication system in terms of Bit Error Rate (BER) in accordance with the following parameter:
+   - Synthetically generated random binary data stream should be considered as input data.
+   - The system should use Phase Shift Keying (PSK) digital modulation schemes with the modulation order of M = 2, 4, 8.
+   - Additive White Gaussian Noise (AWGN) Channel should be used as a wireless communication channel model.
+
+2. Write a MATLAB source code for wireless transmission and reception of the following input binary sequence using BPSK modulation method:  
+   1011001001
+
+Assume a free space propagation of the modulated signal to the receiver; consider an AWGN channel and an SNR value of 1dB for the received BPSK signal. In signal and show the number of erroneous bits received. Plot the following:  
+   (a) the polar NRZ input binary sequence and modulated BPSK signal,  
+   (b) received BPSK signal in an AWGN channel and output of the coherent receiver, and  
+   (c) transmitted and detected binary sequence.
+
+
+
+ans 1 
+
+
+clc;
+clear all;
+close all;
+
+% Define modulation order (M = 8) and bits per symbol
+M = 8;
+bps = log2(M);
+
+%% Part (a): Generating the Random Binary Data Stream
+nosymbol = 600; % Number of symbols
+symbols = randi([0 255], 1, nosymbol); % Generate random symbols in the range 0-255
+
+% Convert symbols to binary representation (8-bit per symbol)
+symbolToBitMapping = de2bi(symbols, 8, 'left-msb');
+
+% Flatten the binary matrix to create a continuous binary data stream
+totNoBits = numel(symbolToBitMapping);
+inputReshapedBits = reshape(symbolToBitMapping, 1, totNoBits);
+
+% Padding to ensure bit stream length is a multiple of bits per symbol
+remainder = mod(totNoBits, bps);
+if remainder ~= 0
+    paddingBits = zeros(1, bps - remainder);
+    userPaddedData = [inputReshapedBits paddingBits];
+else
+    userPaddedData = inputReshapedBits;
+end
+
+%% Part (b): 8-PSK Modulation
+% Reshape binary data into groups of 'bps' bits for modulation
+reshapedUserPaddedData = reshape(userPaddedData, numel(userPaddedData)/bps, bps);
+
+% Convert binary groups to decimal symbols for modulation
+bitToSymbolMapping = bi2de(reshapedUserPaddedData, 'left-msb');
+
+% Perform 8-PSK modulation
+modulatedSymbol = pskmod(bitToSymbolMapping, M, pi/M); % Phase offset of pi/M
+
+%% Part (c): Transmission over AWGN Channel and BER Calculation
+SNR = []; % Array to store SNR values
+BER = []; % Array to store BER values
+
+for snr = 6:15
+    SNR = [SNR snr]; % Store current SNR
+
+    % Add AWGN noise to the modulated signal
+    noisySymbols = awgn(modulatedSymbol, snr, 'measured');
+
+    % Demodulation using 8-PSK
+    demodulatedSymbol = pskdemod(noisySymbols, M, pi/M);
+
+    % Convert demodulated symbols back to binary
+    demodulatedSymbolToBitMapping = de2bi(demodulatedSymbol, bps, 'left-msb');
+
+    % Reshape binary matrix into a single binary stream
+    reshapedDemodulatedBits = reshape(demodulatedSymbolToBitMapping, 1, numel(demodulatedSymbolToBitMapping));
+
+    % Remove padding to get original data
+    demodulatedBitsWithoutPadding = reshapedDemodulatedBits(1:totNoBits);
+
+    % Compute Bit Error Rate (BER)
+    [noe, ber] = biterr(inputReshapedBits, demodulatedBitsWithoutPadding);
+    BER = [BER ber];
+
+    % Convert demodulated binary back to text (optional for verification)
+    txtBits = reshape(demodulatedBitsWithoutPadding, numel(demodulatedBitsWithoutPadding)/8, 8);
+    txtBitsDecimal = bi2de(txtBits, 'left-msb');
+    msg = char(txtBitsDecimal)';
+    disp(['Decoded message at SNR = ', num2str(snr), ': ', msg]);
+end
+
+% Plot BER vs SNR
+figure;
+semilogy(SNR, BER, 'b-o', 'LineWidth', 1.5);
+xlabel('SNR (dB)');
+ylabel('Bit Error Rate (BER)');
+title('SNR vs BER for 8-PSK over AWGN Channel');
+grid on;
+
+
+
+ans 02    
+
+
+
+clc; clear all; close all;
+
+% Given binary sequence
+BINSEQ = [1 0 1 1 0 0 1 0 0 1]; 
+number_bits = length(BINSEQ);
+Eb = 1;  % Energy per bit
+Tb = 1;  % Bit duration
+nc = 4;  % Carrier frequency multiplier
+fc = nc/Tb;
+t = 0:1/100:1;
+TX = [];
+
+% Carrier Signal
+Ac = 1.0;
+wc = 2 * pi * fc;
+xc = cos(wc * t);
+figure(1);
+plot(t, Ac * xc);
+title('Carrier Signal');
+xlabel('Time (s)');
+ylabel('Amplitude');
+
+% (a) BPSK Modulation
+for m = 1:number_bits
+    if (BINSEQ(m) == 1)
+        TX = [TX sqrt(2 * Eb / Tb) * cos(2 * pi * fc * t)];
+    else
+        TX = [TX -sqrt(2 * Eb / Tb) * cos(2 * pi * fc * t)];
+    end
+end
+
+figure(2);
+subplot(2,1,1);
+stem(BINSEQ, 'filled');
+title('(a) Polar NRZ Input Binary Sequence');
+xlabel('Bit Index');
+ylabel('Amplitude');
+
+tx_time = linspace(0, number_bits, length(TX));
+subplot(2,1,2);
+plot(tx_time, TX);
+title('(a) Modulated BPSK Signal');
+xlabel('Time');
+ylabel('Amplitude');
+
+% (b) Add AWGN Noise
+snr_db = 1;  % SNR of 1 dB
+RX_AWGN = awgn(TX, snr_db, 'measured');
+
+figure(3);
+subplot(2,1,1);
+plot(tx_time, RX_AWGN);
+title('(b) Received BPSK Signal in AWGN Channel');
+xlabel('Time');
+ylabel('Amplitude');
+
+% Coherent Detection
+LO = sqrt(2 / Tb) * cos(2 * pi * fc * t);
+BINSEQDET = [];
+CS = [];
+for n = 1:number_bits
+    temp = RX_AWGN((n-1)*101+1 : n*101);
+    S = sum(temp .* LO);
+    CS = [CS S];
+    if S > 0
+        BINSEQDET = [BINSEQDET 1];
+    else
+        BINSEQDET = [BINSEQDET 0];
+    end
+end
+
+subplot(2,1,2);
+stem(BINSEQDET, 'filled');
+title('(b) Output of the Coherent Receiver');
+xlabel('Bit Index');
+ylabel('Amplitude');
+
+% (c) Transmitted vs Detected Sequence
+figure(4);
+subplot(2,1,1);
+stem(BINSEQ, 'filled');
+title('(c) Transmitted Binary Sequence');
+xlabel('Bit Index');
+ylabel('Amplitude');
+
+subplot(2,1,2);
+stem(BINSEQDET, 'filled');
+title('(c) Detected Binary Sequence');
+xlabel('Bit Index');
+ylabel('Amplitude');
+
+% Bit Error Calculation
+Bit_error = sum(abs(BINSEQDET - BINSEQ));
+fprintf('Number of erroneous bits: %d\n', Bit_error);
