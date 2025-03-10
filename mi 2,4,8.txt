@@ -1,0 +1,62 @@
+clc;  
+clear all;  
+close all;  
+
+% a) Synthetically generated random binary data stream as input
+% Set modulation order M for 2, 4, 8 PSK
+M_values = [2, 4, 8]; % M = 2, M = 4, M = 8
+SNR = 6:15;  % Signal-to-noise ratio range
+nosymbol = 600;  % Number of symbols
+
+% Loop over different modulation orders M
+for i = 1:length(M_values)
+    M = M_values(i);
+    bps = log2(M);  % Bits per symbol
+    
+    % b) Input Data: Generate random binary stream and reshape
+    symbols = randint(1, nosymbol, 256);
+    symbolToBitMapping = de2bi(symbols, 8, 'left-msb');
+    
+    % Calculate total number of bits and reshape for transmission
+    totNoBits = numel(symbolToBitMapping);
+    inputReshapedBits = reshape(symbolToBitMapping, 1, totNoBits);
+
+    % Padding
+    remainder = rem(totNoBits, bps);
+    if(remainder == 0)
+        userPaddedData = inputReshapedBits;
+    else
+        paddingBits = zeros(1, bps - remainder);
+        userPaddedData = [inputReshapedBits paddingBits];
+    end  
+
+    % c) Modulation: Map bits to symbols using PSK modulation
+    reshapedUserPaddedData = reshape(userPaddedData, numel(userPaddedData)/bps, bps);
+    bitToSymbolMapping = bi2de(reshapedUserPaddedData, 'left-msb');
+    modulatedSymbol = pskmod(bitToSymbolMapping, M);
+
+    % Channel: Add AWGN noise for different SNR values
+    BER = [];
+    for snr = SNR
+        noisySymbols = awgn(modulatedSymbol, snr, 'measured');
+        demodulatedSymbol = pskdemod(noisySymbols, M);
+
+        % Calculate Bit Error Rate (BER)
+        demodulatedSymbolToBitMapping = de2bi(demodulatedSymbol, 'left-msb');
+        reshapedDemodulatedBits = reshape(demodulatedSymbolToBitMapping, 1, numel(demodulatedSymbolToBitMapping));
+        
+        % Remove padding
+        demodulatedBitsWithoutPadding = reshapedDemodulatedBits(1: totNoBits);
+        
+        % Calculate bit errors
+        [noe, ber] = biterr(inputReshapedBits, demodulatedBitsWithoutPadding);
+        BER = [BER, ber];
+    end
+
+    % Plot BER vs. SNR for current modulation order M
+    figure(i)
+    semilogy(SNR, BER, '--');
+    xlabel('SNR (dB)');
+    ylabel('Bit Error Rate (BER)');
+    title(['SNR vs BER for PSK Modulation M = ' num2str(M)]);
+end
